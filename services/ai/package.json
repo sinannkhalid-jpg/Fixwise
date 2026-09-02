@@ -1,0 +1,13 @@
+{
+  "name": "@fixwise/ai-engine",
+  "version": "1.0.0",
+  "description": "Member 3 AI & Civic Intelligence Core Engine (TypeScript & Node.js)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "test": "node test.js"
+  },
+  "keywords": ["ai", "gemini", "civic-intelligence", "duplicate-detection", "priority-engine"],
+  "author": "Member 3 (AI & Intelligence Lead)",
+  "license": "MIT"
+}
