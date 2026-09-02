@@ -39,6 +39,21 @@ class AnalyzeReportRequest(BaseModel):
     }
 
 
+class ImageEvidenceAnalysis(BaseModel):
+    image_present: bool = False
+    image_relevant: Optional[bool] = None
+    visible_issue: Optional[str] = None
+    evidence_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    sufficient_evidence: bool = False
+
+
+class IntakeRiskAnalysis(BaseModel):
+    risk_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    risk_level: str = "LOW"
+    reasons: List[str] = Field(default_factory=list)
+    requires_manual_review: bool = False
+
+
 class AnalyzeReportResponse(BaseModel):
     category: IssueCategory = Field(..., description="Categorized civic issue type")
     subcategory: str = Field(..., description="Detailed sub-type classification")
@@ -49,5 +64,12 @@ class AnalyzeReportResponse(BaseModel):
     visual_evidence_summary: str = Field(..., description="Concise synopsis of visual and textual findings")
     hazard_tags: List[str] = Field(default_factory=list, description="Extracted hazard/risk keywords")
     estimated_urgency_hours: int = Field(default=24, description="AI suggested maximum response window in hours")
+    department_confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+    public_impact: float = Field(default=0.5, ge=0.0, le=1.0)
+    image_analysis: ImageEvidenceAnalysis = Field(default_factory=ImageEvidenceAnalysis)
+    risk_analysis: IntakeRiskAnalysis = Field(default_factory=IntakeRiskAnalysis)
+    requires_manual_review: bool = False
+    review_reasons: List[str] = Field(default_factory=list)
+    explanation: str = ""
     embedding: Optional[List[float]] = Field(default=None, description="768-dimensional text/multimodal vector embedding for pgvector")
     ai_metadata: Dict[str, Any] = Field(default_factory=dict, description="Diagnostic metadata (model used, latency, mock status)")

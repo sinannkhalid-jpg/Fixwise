@@ -18,8 +18,8 @@ class Settings(BaseSettings):
 
     # Google Gemini AI Settings
     GEMINI_API_KEY: str = ""
-    GEMINI_MULTIMODAL_MODEL: str = "gemini-2.0-flash"
-    GEMINI_EMBEDDING_MODEL: str = "text-embedding-004"
+    GEMINI_MULTIMODAL_MODEL: str = "gemini-3.8-flash"
+    GEMINI_EMBEDDING_MODEL: str = "gemini-embedding-001"
     AI_CONFIDENCE_THRESHOLD: float = 0.65
 
     # Fallback / Mock Behavior

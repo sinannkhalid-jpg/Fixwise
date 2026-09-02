@@ -55,7 +55,14 @@ function ReportWizard() {
   const [gpsLoading, setGpsLoading] = useState(false);
   const [stage, setStage] = useState<"form" | "pipeline" | "done">("form");
   const [pipelineStep, setPipelineStep] = useState(0);
-  const [result, setResult] = useState<{ outcome: "new_case" | "linked"; caseId: string; caseNumber?: number; linkedCount: number } | null>(null);
+  const [result, setResult] = useState<{
+    outcome: "new_case" | "linked";
+    caseId: string;
+    caseNumber?: number;
+    linkedCount: number;
+    requiresManualReview?: boolean;
+    riskScore?: number;
+  } | null>(null);
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -106,34 +113,31 @@ function ReportWizard() {
     "Priority engine scoring & municipality routing",
   ];
 
-  function submit() {
+  async function submit() {
     if (!location) return setError("A location is required.");
     setStage("pipeline");
     setPipelineStep(0);
-    let i = 0;
-    const tick = () => {
-      i++;
-      if (i < PIPELINE.length) {
-        setPipelineStep(i);
-        setTimeout(tick, 750);
-      } else {
-        try {
-          const res = createReport({
-            description: description.trim(),
-            category: category ?? aiSuggestion,
-            photos,
-            location,
-          });
-          setResult(res);
-        } catch (e) {
-          setError(e instanceof Error ? e.message : "Something went wrong");
-          setStage("form");
-          return;
-        }
-        setStage("done");
-      }
-    };
-    setTimeout(tick, 750);
+    const progressTimer = window.setInterval(() => {
+      setPipelineStep((current) => Math.min(current + 1, PIPELINE.length - 1));
+    }, 750);
+    try {
+      const res = await createReport({
+        description: description.trim(),
+        // Only an explicit citizen choice is authoritative input. The keyword
+        // suggestion is UI assistance; the live model performs final analysis.
+        category,
+        photos,
+        location,
+      });
+      setPipelineStep(PIPELINE.length - 1);
+      setResult(res);
+      setStage("done");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong");
+      setStage("form");
+    } finally {
+      window.clearInterval(progressTimer);
+    }
   }
 
   // ── pipeline / done screens ──
@@ -192,12 +196,18 @@ function ReportWizard() {
             {linked ? <Link2 className="h-7 w-7" /> : <CheckCircle2 className="h-7 w-7" />}
           </span>
           <h1 className="mt-4 text-2xl font-bold text-slate-900">
-            {linked ? "Linked to an existing case" : `Case #${result.caseNumber} created`}
+            {linked
+              ? "Linked to an existing case"
+              : result.requiresManualReview
+                ? `Case #${result.caseNumber} requires review`
+                : `Case #${result.caseNumber} created`}
           </h1>
           <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-600">
             {linked
               ? `Another citizen already reported this issue nearby. Your report was linked — ${result.linkedCount} citizens have now reported it, which raises its priority. You'll receive updates on this case.`
-              : "Your report was classified by AI, scored by the priority engine and routed to the right municipal department. Track it any time from My Reports."}
+              : result.requiresManualReview
+                ? `The report was safely recorded but the analysis was uncertain or suspicious (risk score ${result.riskScore ?? 0}/100). It has been sent for human review and was not automatically rejected.`
+                : "Your report was classified by AI, scored by the deterministic priority engine and routed to the recommended municipal department. Track it any time from My Reports."}
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Link

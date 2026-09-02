@@ -49,3 +49,18 @@ async def test_broken_streetlight_classification():
     assert res.category == IssueCategory.BROKEN_STREETLIGHT
     assert res.recommended_department == DepartmentType.ELECTRICAL_TRAFFIC
     assert "night_visibility_hazard" in res.hazard_tags
+
+
+@pytest.mark.asyncio
+async def test_gibberish_requires_human_review():
+    req = AnalyzeReportRequest(
+        description="ftutftuiufgtydretsfygtyd",
+        location=GPSCoordinates(latitude=18.63, longitude=73.80),
+    )
+    res = await classifier_engine.analyze_report(req)
+
+    assert res.category == IssueCategory.OTHER
+    assert res.confidence < 0.60
+    assert res.risk_analysis.risk_score >= 0.60
+    assert res.risk_analysis.risk_level in {"HIGH", "VERY_HIGH"}
+    assert res.requires_manual_review is True

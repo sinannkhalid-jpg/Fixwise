@@ -57,6 +57,36 @@ export interface CreateReportResult {
   caseNumber?: number;
   linkedCount: number;
   duplicateOfTitle?: string;
+  requiresManualReview?: boolean;
+  riskScore?: number;
+}
+
+interface LiveAIResult {
+  category: Case["category"];
+  severity: number;
+  safetyRisk: number;
+  confidence: number;
+  recommendedDepartment: NonNullable<Case["departmentKey"]>;
+  departmentConfidence?: number;
+  publicImpact?: number;
+  summary: string;
+  explanation?: string;
+  isCivicIssue: boolean;
+  imageAnalysis?: {
+    imagePresent: boolean;
+    imageRelevant: boolean | null;
+    visibleIssue: string | null;
+    evidenceConfidence: number;
+    sufficientEvidence: boolean;
+  };
+  textSpamSuspicion: number;
+  imageTextConsistency: number;
+  riskScore: number;
+  riskReasons: string[];
+  requiresManualReview?: boolean;
+  reviewReasons?: string[];
+  model: string;
+  promptVersion?: string;
 }
 
 interface AppApi {
@@ -78,7 +108,7 @@ interface AppApi {
   signOut: () => Promise<void>;
   setActiveMunicipalityId: (id: string) => void;
   // case ops
-  createReport: (draft: ReportDraft) => CreateReportResult;
+  createReport: (draft: ReportDraft) => Promise<CreateReportResult>;
   setStatus: (caseId: string, next: CaseStatus, note?: string) => void;
   assignWorker: (caseId: string, workerId: string) => void;
   addEvidence: (caseId: string, item: Omit<EvidenceItem, "id" | "at">) => void;
@@ -231,15 +261,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   // ── REPORT → pipeline (mirrors backend flow, mock AI) ──
-  function createReport(draft: ReportDraft): CreateReportResult {
+  async function createReport(draft: ReportDraft): Promise<CreateReportResult> {
     if (!draft.description.trim()) throw new Error("Description is required.");
     if (!draft.location) throw new Error("Location is required.");
 
-    const category = draft.category ?? suggestCategory(draft.description) ?? "OTHER";
-    const severity = 0.3 + Math.random() * 0.6;
-    const safetyRisk = Math.min(1, severity * (0.7 + Math.random() * 0.4));
-    const confidence = 0.6 + Math.random() * 0.38;
-    const deptKey = DEPT_FOR_CATEGORY[category];
+    // The browser calls our server-only Next.js route. GEMINI_API_KEY is never
+    // exposed to client JavaScript. If the provider is unavailable, the report
+    // still goes through the conservative local fallback below.
+    let liveAI: LiveAIResult | null = null;
+    try {
+      const response = await fetch("/api/ai/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description: draft.description,
+          location: draft.location,
+          photo: draft.photos[0] ?? null,
+        }),
+      });
+      if (response.ok) liveAI = await response.json() as LiveAIResult;
+      else console.warn("Live AI unavailable; using local safety fallback", response.status);
+    } catch (error) {
+      console.warn("Live AI request failed; using local safety fallback", error);
+    }
+
+    const category = draft.category ?? liveAI?.category ?? suggestCategory(draft.description) ?? "OTHER";
+    const severity = liveAI?.severity ?? (0.3 + Math.random() * 0.35);
+    const safetyRisk = liveAI?.safetyRisk ?? Math.min(1, severity * 0.8);
+    const confidence = liveAI?.confidence ?? 0.55;
+    const deptKey = draft.category ? DEPT_FOR_CATEGORY[category] : (liveAI?.recommendedDepartment ?? DEPT_FOR_CATEGORY[category]);
 
     // municipality from GPS (mock point-in-polygon: nearest municipality center)
     let muni = MUNICIPALITIES[0];
@@ -254,36 +304,82 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const now = Date.now();
 
-    // duplicate detection: same muni+category, open, ≤1.2km, ≤14 days
-    const dup = cases.find((c) => {
-      if (c.municipalityId !== muni.id || c.category !== category) return false;
-      if (["CLOSED", "REJECTED"].includes(c.status)) return false;
-      const km = Math.hypot(
-        (c.location.lat - draft.location.lat) * 111,
-        (c.location.lng - draft.location.lng) * 103
-      );
-      const ageDays = Math.abs(now - new Date(c.createdAt).getTime()) / 86400000;
-      return km < 1.2 && ageDays < 14;
-    });
+    // Explainable duplicate detection combines text, GPS, category and time.
+    // It never rejects a report; only strong matches are linked automatically.
+    const tokens = (value: string) => new Set(
+      (value.toLowerCase().match(/[a-z0-9]+/g) ?? [])
+        .filter((token) => token.length > 2 && !["the", "and", "near", "there", "this", "that", "with"].includes(token))
+    );
+    const textSimilarity = (left: string, right: string) => {
+      const a = tokens(left); const b = tokens(right);
+      if (!a.size || !b.size) return 0;
+      const intersection = [...a].filter((token) => b.has(token)).length;
+      return intersection / (a.size + b.size - intersection);
+    };
+    const duplicateMatches = cases
+      .filter((c) => c.municipalityId === muni.id && !["CLOSED", "REJECTED"].includes(c.status))
+      .map((c) => {
+        const km = Math.hypot(
+          (c.location.lat - draft.location.lat) * 111,
+          (c.location.lng - draft.location.lng) * 103
+        );
+        const ageDays = Math.abs(now - new Date(c.createdAt).getTime()) / 86400000;
+        const lexical = textSimilarity(draft.description, c.description);
+        const gps = Math.max(0, 1 - km / 1.2);
+        const categoryMatch = c.category === category ? 1 : 0;
+        const time = Math.max(0, 1 - ageDays / 14);
+        const score = 0.45 * lexical + 0.35 * gps + 0.15 * categoryMatch + 0.05 * time;
+        return { case: c, score, km, ageDays, lexical };
+      })
+      .filter((match) => match.km <= 1.2 && match.ageDays <= 14)
+      .sort((a, b) => b.score - a.score);
+    const dupMatch = duplicateMatches[0] ?? null;
+    const dup = dupMatch && dupMatch.score >= 0.72 ? dupMatch.case : null;
 
-    // Fraud-risk is deterministic and explainable instead of random, so flagged reports
-    // reliably appear in review queues and sorting remains accurate.
-    const text = draft.description.toLowerCase();
+    // Blend account/evidence signals with the model's semantic spam assessment.
+    // Garbage text is suspicious, not automatically proven fraud: HIGH/VERY_HIGH
+    // submissions are held for human review rather than silently rejected.
+    const text = draft.description.toLowerCase().trim();
+    const words = text.match(/[a-z]+/g) ?? [];
+    const letters = (text.match(/[a-z]/g) ?? []).length;
+    const vowels = (text.match(/[aeiou]/g) ?? []).length;
+    const noWordBoundaries = words.length <= 1 && letters >= 18;
+    const abnormalVowelRatio = letters >= 18 && (vowels / letters < 0.18 || vowels / letters > 0.72);
+    const repeatedRun = /(.{2,5})\1{2,}/i.test(text);
     const burstSignal = cases.filter((c) => c.reporter.id === persona.userId && (Date.now() - new Date(c.createdAt).getTime()) < 48 * 3600000).length;
-    const riskScore = Math.min(100, Math.round(
-      (burstSignal >= 5 ? 42 : burstSignal >= 2 ? 18 : 0) +
-      (text.length < 25 ? 18 : 0) +
-      (draft.photos.length === 0 ? 12 : 0) +
-      (/(copy|same|test|fake|spam)/i.test(text) ? 24 : 0)
-    ));
+    const localReasons: string[] = [];
+    let localRisk = 0;
+    if (burstSignal >= 5) { localRisk += 42; localReasons.push("Unusually high submission frequency"); }
+    else if (burstSignal >= 2) { localRisk += 18; localReasons.push("Elevated submission frequency"); }
+    if (text.length < 25) { localRisk += 18; localReasons.push("Description is too short to verify"); }
+    if (draft.photos.length === 0) { localRisk += 12; localReasons.push("No photo evidence supplied"); }
+    if (/(copy|same|test|fake|spam)/i.test(text)) { localRisk += 24; localReasons.push("Test or spam language detected"); }
+    if (noWordBoundaries) { localRisk += 48; localReasons.push("Description appears to be random or unreadable text"); }
+    if (abnormalVowelRatio) { localRisk += 24; localReasons.push("Abnormal text pattern detected"); }
+    if (repeatedRun) { localRisk += 28; localReasons.push("Repeated character pattern detected"); }
+    if (liveAI && !liveAI.isCivicIssue) {
+      localRisk = Math.max(localRisk, 65);
+      localReasons.push("The submission does not clearly describe a civic issue");
+    }
+    if (draft.photos.length > 0 && liveAI && liveAI.imageTextConsistency < 0.30) {
+      localRisk += 35;
+      localReasons.push("Photo and description appear inconsistent");
+    }
+    const semanticRisk = liveAI?.riskScore ?? 0;
+    const riskScore = Math.min(100, Math.max(localRisk, semanticRisk));
+    const riskLevel = riskLevelFromScore(riskScore);
+    const uncertainDuplicate = Boolean(dupMatch && dupMatch.score >= 0.50 && dupMatch.score < 0.72);
+    if (uncertainDuplicate) localReasons.push("Possible duplicate requires confirmation before linking");
+    const reviewReasons = [...(liveAI?.reviewReasons ?? []), ...localReasons];
+    const reviewRequired = riskScore >= 60 || Boolean(liveAI?.requiresManualReview) || confidence < 0.60 || uncertainDuplicate;
     const risk: RiskAssessment = {
       score: riskScore,
-      level: riskLevelFromScore(riskScore),
-      action: riskActionFromLevel(riskLevelFromScore(riskScore)),
-      reasons: [],
+      level: riskLevel,
+      action: reviewRequired && riskLevel === "LOW" ? "ADDITIONAL_VERIFICATION" : riskActionFromLevel(riskLevel),
+      reasons: Array.from(new Set([...(liveAI?.riskReasons ?? []), ...reviewReasons])).slice(0, 6),
     };
 
-    if (dup) {
+    if (dup && !reviewRequired) {
       const dupTitle = dup.title;
       let updated: Case | null = null;
       setCases((prev) =>
@@ -325,13 +421,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       safetyRisk,
       confidence,
       recommendedDepartment: deptKey,
-      summary: `${CATEGORY_MAP[category].label} detected near ${area.name}. ${
+      summary: liveAI?.summary ?? `${CATEGORY_MAP[category].label} detected near ${area.name}. ${
         severity > 0.7 ? "High" : severity > 0.4 ? "Moderate" : "Low"
       } severity with ${safetyRisk > 0.6 ? "significant safety risk" : "limited immediate safety risk"}.`,
-      model: "gemma-2 / gemini-flash (mock)",
+      model: liveAI?.model ?? "local safety fallback",
       analyzedAt: NOW(),
-      duplicateOfCaseId: null,
-      duplicateProbability: Math.random() * 0.35,
+      duplicateOfCaseId: dupMatch?.case.id ?? null,
+      duplicateProbability: dupMatch?.score ?? 0,
     };
 
     const ps = computePriorityScore({
@@ -340,7 +436,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       linkedReports: 1,
       locationImportance: area.imp,
       ageDays: 0,
-      publicImpact: Math.round(severity * 5),
+      publicImpact: Math.round((liveAI?.publicImpact ?? severity * 0.5) * 10),
     });
     const priority = priorityFromScore(ps.total);
     const sla = recomputeSla(
@@ -355,7 +451,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       title: draft.description.length > 60 ? `${draft.description.slice(0, 57)}…` : draft.description,
       description: draft.description,
       category,
-      status: "ASSIGNED",
+      status: reviewRequired ? "ANALYZING" : "ASSIGNED",
       priority,
       priorityScore: ps,
       municipalityId: muni.id,
@@ -380,13 +476,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       statusHistory: [
         { status: "REPORTED", at: NOW(), byName: persona.name, byRole: "CITIZEN" },
         { status: "ANALYZING", at: NOW(), byName: "Fixwise AI", byRole: "SYSTEM" },
-        {
-          status: "ASSIGNED",
+        ...(reviewRequired ? [] : [{
+          status: "ASSIGNED" as const,
           at: NOW(),
           byName: "Auto-routing",
           byRole: "SYSTEM",
           note: `Routed to ${MUNI_BY_ID[muni.id].shortName} · ${deptKey}`,
-        },
+        }]),
       ],
       assignment: null,
       evidence: draft.photos.length
@@ -400,7 +496,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     setCases((prev) => [newCase, ...prev]);
     audit(persona.name, "INCIDENT_CREATED", `Case #${caseNumber} · ${category} · ${priority}`);
-    notify("Report received", `Case #${caseNumber} created and routed to ${MUNI_BY_ID[muni.id].shortName} (${CATEGORY_MAP[category].label} → ${deptKey}).`, newCase.id);
+    notify(
+      reviewRequired ? "Report received for verification" : "Report received",
+      reviewRequired
+        ? `Case #${caseNumber} was flagged as suspicious and sent for human review. It was not automatically rejected.`
+        : `Case #${caseNumber} created and routed to ${MUNI_BY_ID[muni.id].shortName} (${CATEGORY_MAP[category].label} → ${deptKey}).`,
+      newCase.id,
+    );
     setNotifications((prev) => [
       {
         id: uid("n"),
@@ -413,7 +515,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       },
       ...prev,
     ]);
-    return { outcome: "new_case", caseId: newCase.id, caseNumber, linkedCount: 1 };
+    return {
+      outcome: "new_case",
+      caseId: newCase.id,
+      caseNumber,
+      linkedCount: 1,
+      requiresManualReview: reviewRequired,
+      riskScore,
+    };
   }
 
   const EMPTY_SLA = { sla: { createdAt: NOW(), dueAt: NOW(), hoursAllowed: 0, breached: false, status: "ON_TRACK" as const, resolvedAt: null } };

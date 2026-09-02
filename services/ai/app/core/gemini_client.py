@@ -149,7 +149,10 @@ class GeminiClient:
                 "model": f"models/{self.embedding_model}",
                 "content": {
                     "parts": [{"text": text}]
-                }
+                },
+                # Keep pgvector schema compatibility even when the provider's
+                # native embedding dimension changes.
+                "outputDimensionality": 768
             }
             async with httpx.AsyncClient(timeout=10.0) as client:
                 res = await client.post(url, json=payload)

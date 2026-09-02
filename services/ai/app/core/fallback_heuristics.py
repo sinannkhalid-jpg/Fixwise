@@ -63,7 +63,7 @@ KEYWORD_CATEGORY_MAP = [
     (
         IssueCategory.DAMAGED_ROAD,
         DepartmentType.ROADS,
-        ["damaged road", "cracked road", "broken pavement", "sidewalk broken", "paver blocks missing", "sunken road", "speed bump broken"],
+        ["damaged road", "road damage", "cracked road", "cracked asphalt", "broken pavement", "sidewalk broken", "paver blocks missing", "sunken road", "speed bump broken"],
         "structural_pavement_failure",
         0.65, 0.55,
         ["tripping_hazard", "suspension_wear", "uneven_surface"]
@@ -115,6 +115,39 @@ def heuristic_classify(description: str, has_image: bool = True) -> Dict[str, An
             hazard_tags = tags
             confidence = min(0.95, 0.85 + (count * 0.03))
 
+    # Unknown or unreadable input must not receive invented high confidence.
+    words = re.findall(r"[a-z]+", desc_lower)
+    letters = re.findall(r"[a-z]", desc_lower)
+    vowels = re.findall(r"[aeiou]", desc_lower)
+    no_word_boundaries = len(words) <= 1 and len(letters) >= 18
+    vowel_ratio = (len(vowels) / len(letters)) if letters else 0.0
+    abnormal_vowels = len(letters) >= 18 and (vowel_ratio < 0.18 or vowel_ratio > 0.72)
+    repeated_pattern = bool(re.search(r"(.{2,5})\1{2,}", desc_lower))
+    risk_reasons = []
+    risk_score = 0.0
+    if best_match_count == 0:
+        confidence = 0.35
+        severity = 0.20
+        safety_risk = 0.15
+    if len(description.strip()) < 25:
+        risk_score += 0.18
+        risk_reasons.append("Description is too short to verify")
+    if not has_image:
+        risk_score += 0.10
+        risk_reasons.append("No photo evidence supplied")
+    if no_word_boundaries:
+        risk_score += 0.48
+        risk_reasons.append("Description appears random or unreadable")
+    if abnormal_vowels:
+        risk_score += 0.24
+        risk_reasons.append("Abnormal text pattern detected")
+    if repeated_pattern:
+        risk_score += 0.28
+        risk_reasons.append("Repeated character pattern detected")
+    risk_score = min(1.0, risk_score)
+    requires_review = confidence < 0.60 or risk_score >= 0.60
+    risk_level = "VERY_HIGH" if risk_score >= 0.80 else "HIGH" if risk_score >= 0.60 else "MEDIUM" if risk_score >= 0.35 else "LOW"
+
     # Adjust severity based on urgency words
     urgency_boost_words = ["urgent", "danger", "dangerous", "emergency", "massive", "huge", "accident", "hospital", "collapsed", "fire"]
     for word in urgency_boost_words:
@@ -150,6 +183,24 @@ def heuristic_classify(description: str, has_image: bool = True) -> Dict[str, An
         "visual_evidence_summary": visual_summary,
         "hazard_tags": hazard_tags,
         "estimated_urgency_hours": urgency_hours,
+        "department_confidence": round(confidence, 2),
+        "public_impact": round(min(1.0, severity * 0.7 + safety_risk * 0.3), 2),
+        "image_analysis": {
+            "image_present": has_image,
+            "image_relevant": None,
+            "visible_issue": None,
+            "evidence_confidence": 0.0,
+            "sufficient_evidence": False
+        },
+        "risk_analysis": {
+            "risk_score": round(risk_score, 2),
+            "risk_level": risk_level,
+            "reasons": risk_reasons,
+            "requires_manual_review": requires_review
+        },
+        "requires_manual_review": requires_review,
+        "review_reasons": risk_reasons if requires_review else [],
+        "explanation": visual_summary,
         "embedding": generate_deterministic_embedding(description),
         "ai_metadata": {
             "engine": "heuristic_fallback_v1",
