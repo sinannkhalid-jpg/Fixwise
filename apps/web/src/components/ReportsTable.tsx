@@ -28,6 +28,7 @@ export function ReportsTable({
   const [muni, setMuni] = useState("");
   const [cat, setCat] = useState("");
   const [risk, setRisk] = useState("");
+  const [sort, setSort] = useState<"risk" | "newest">("risk");
 
   const filtered = rows.filter(
     (r) =>
@@ -62,6 +63,10 @@ export function ReportsTable({
             <option key={r} value={r}>{RISK_META[r].label}</option>
           ))}
         </Select>
+        <Select value={sort} onChange={(e) => setSort(e.target.value as "risk" | "newest")} className="w-auto">
+          <option value="risk">Sort: risk score</option>
+          <option value="newest">Sort: newest</option>
+        </Select>
         <div className="relative ml-auto w-full sm:w-60">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search reports…" className="pl-9" />
@@ -95,7 +100,10 @@ export function ReportsTable({
               </tr>
             </thead>
             <tbody>
-              {filtered.slice(0, 60).map(({ report, case: c, isPrimary }) => (
+              {[...filtered].sort((a, b) => sort === "risk"
+                ? (b.report.riskScore ?? b.case.risk.score) - (a.report.riskScore ?? a.case.risk.score)
+                : new Date(b.report.createdAt).getTime() - new Date(a.report.createdAt).getTime()
+              ).slice(0, 60).map(({ report, case: c, isPrimary }) => (
                 <tr key={report.id} className="border-b border-slate-50 hover:bg-slate-50/60">
                   <td className="px-5 py-3">
                     <p className="font-medium text-slate-800">{report.citizenName}</p>

@@ -51,6 +51,7 @@ function ReportWizard() {
   const [photos, setPhotos] = useState<string[]>([]);
   const [hasVideo, setHasVideo] = useState(false);
   const [location, setLocation] = useState<{ lat: number; lng: number; label: string } | null>(null);
+  const [municipalityId, setMunicipalityId] = useState("");
   const [gpsLoading, setGpsLoading] = useState(false);
   const [stage, setStage] = useState<"form" | "pipeline" | "done">("form");
   const [pipelineStep, setPipelineStep] = useState(0);
@@ -62,17 +63,18 @@ function ReportWizard() {
   const nearest = useMemo(() => nearestArea(location), [location]);
 
   function useGps() {
-    setGpsLoading(true);
-    setTimeout(() => {
-      const m = MUNICIPALITIES[0];
-      const area = m.areas[Math.floor(Math.random() * m.areas.length)];
-      setLocation({
-        lat: area.lat + (Math.random() - 0.5) * 0.004,
-        lng: area.lng + (Math.random() - 0.5) * 0.004,
-        label: area.name,
-      });
-      setGpsLoading(false);
-    }, 700);
+    if (!navigator.geolocation) return setError("Location is not supported by this browser.");
+    setGpsLoading(true); setError("");
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        const area = nearestArea({ lat: coords.latitude, lng: coords.longitude });
+        setLocation({ lat: coords.latitude, lng: coords.longitude, label: area || "Current location" });
+        setMunicipalityId(nearestMunicipality({ lat: coords.latitude, lng: coords.longitude })?.id ?? "");
+        setGpsLoading(false);
+      },
+      () => { setGpsLoading(false); setError("Could not access GPS. Choose a municipality and tap the map instead."); },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   }
 
   function onFiles(files: FileList | null) {
@@ -346,6 +348,14 @@ function ReportWizard() {
             </p>
 
             <div className="mt-4 flex flex-wrap items-center gap-3">
+              <select value={municipalityId} onChange={(e) => {
+                const m = municipalities.find((x) => x.id === e.target.value);
+                setMunicipalityId(e.target.value);
+                if (m) setLocation({ ...m.center, label: m.areas[0]?.name ?? m.shortName });
+              }} className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-700">
+                <option value="">Choose municipality</option>
+                {municipalities.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
               <Button variant="outline" onClick={useGps} disabled={gpsLoading}>
                 {gpsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Crosshair className="h-4 w-4" />}
                 Use my GPS location
@@ -520,10 +530,10 @@ function nearestArea(loc: { lat: number; lng: number } | null): string {
 
 function nearestMunicipality(loc: { lat: number; lng: number } | null) {
   if (!loc) return null;
-  let best = null as null | { name: string; d: number };
+  let best = null as null | { id: string; name: string; d: number };
   for (const m of MUNICIPALITIES) {
     const d = Math.hypot(m.center.lat - loc.lat, m.center.lng - loc.lng);
-    if (!best || d < best.d) best = { name: m.name, d };
+    if (!best || d < best.d) best = { id: m.id, name: m.name, d };
   }
-  return best ? { name: best.name } : null;
+  return best ? { id: best.id, name: best.name } : null;
 }

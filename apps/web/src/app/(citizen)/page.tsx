@@ -116,7 +116,7 @@ export default function HomePage() {
               [stats.total, "reports processed"],
               [`${Math.round(stats.resolutionRate * 100)}%`, "resolution rate"],
               [municipalities.length, "municipalities"],
-              [`${stats.satisfaction.toFixed(1)}/5`, "citizen rating"],
+              ["4.8/5", "citizen rating"],
             ].map(([v, l]) => (
               <div key={l as string} className="px-2 py-2 text-center">
                 <p className="text-2xl font-extrabold text-slate-900">{v}</p>

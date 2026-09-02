@@ -194,7 +194,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return km < 1.2 && ageDays < 14;
     });
 
-    const riskScore = Math.floor(Math.random() * 25);
+    // Fraud-risk is deterministic and explainable instead of random, so flagged reports
+    // reliably appear in review queues and sorting remains accurate.
+    const text = draft.description.toLowerCase();
+    const burstSignal = cases.filter((c) => c.reporter.id === persona.userId && (Date.now() - new Date(c.createdAt).getTime()) < 48 * 3600000).length;
+    const riskScore = Math.min(100, Math.round(
+      (burstSignal >= 5 ? 42 : burstSignal >= 2 ? 18 : 0) +
+      (text.length < 25 ? 18 : 0) +
+      (draft.photos.length === 0 ? 12 : 0) +
+      (/(copy|same|test|fake|spam)/i.test(text) ? 24 : 0)
+    ));
     const risk: RiskAssessment = {
       score: riskScore,
       level: riskLevelFromScore(riskScore),

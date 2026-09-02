@@ -257,5 +257,9 @@ export function flattenReports(db: DbLike, muniId?: string | null) {
         isPrimary: idx === 0,
       }))
     )
-    .sort((a, b) => new Date(b.report.createdAt).getTime() - new Date(a.report.createdAt).getTime());
+    .sort((a, b) => {
+      // Reports are operationally ordered by fraud risk, highest first.
+      // Use the case-level assessment as a fallback for the primary report.
+      return (b.report.riskScore ?? b.case.risk.score) - (a.report.riskScore ?? a.case.risk.score);
+    });
 }
