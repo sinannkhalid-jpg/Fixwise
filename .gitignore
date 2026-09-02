@@ -1,20 +1,28 @@
-# dependencies
+# Dependencies
 node_modules/
+.pnpm-store/
 __pycache__/
+*.pyc
 .venv/
-
-# next.js
-.next/
-out/
+env/
+venv/
 *.tsbuildinfo
 
-# env — never commit secrets
+# Next.js & Build Output
+.next/
+out/
+dist/
+build/
+coverage/
+.vercel
+
+# Environment & Secrets — never commit
 .env
 .env.local
 .env*.local
+*.env
 
-# misc
+# IDE & OS Files
 .DS_Store
-.vercel
-coverage/
-dist/
+.vscode/
+.idea/
