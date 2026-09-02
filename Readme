@@ -1,0 +1,72 @@
+# 🏙️ AI-Powered Citizen Complaint Management Platform
+
+An AI-powered civic issue reporting and resolution platform that connects citizens, municipalities, departments, and field workers in a single system.
+
+The platform allows citizens to report problems such as potholes, flooding, garbage, broken streetlights, water leaks, and other civic issues. AI analyzes each report, detects possible duplicates, helps determine priority, and routes the issue to the appropriate municipality and department.
+
+The system also analyzes historical complaints to identify recurring problems, hotspots, and possible long-term solutions.
+
+---
+
+## 🚀 Key Features
+
+### 👤 Citizen Reporting
+
+Citizens can:
+
+- Submit civic complaints
+- Upload photos/videos
+- Share their location
+- Add descriptions
+- Track complaint status
+- Receive notifications
+- Provide feedback after resolution
+
+---
+
+### 🤖 AI-Powered Analysis
+
+AI analyzes submitted complaints to help with:
+
+- Issue classification
+- Severity detection
+- Confidence scoring
+- Department recommendation
+- Duplicate detection
+- Spam/fraud risk detection
+- Priority calculation
+- Recurring problem detection
+- Root-cause analysis
+- AI recommendations
+
+---
+
+### 🔄 Duplicate Report Detection
+
+Multiple citizens may report the same physical problem.
+
+Instead of creating separate cases, the system can identify similar reports using:
+
+- Text similarity
+- Image similarity
+- Geographic proximity
+- Issue category
+- Time proximity
+
+Example:
+
+```text
+Citizen A → Pothole near school
+Citizen B → Large road hole near school
+Citizen C → Damaged road outside school
+
+              ↓
+
+        Possible same issue
+
+              ↓
+
+          CASE #1024
+
+Reports: 3
+Unique citizens: 3
