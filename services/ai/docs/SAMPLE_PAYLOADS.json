@@ -1,0 +1,100 @@
+{
+  "sample_citizen_analysis_response": {
+    "category": "pothole",
+    "subcategory": "deep_asphalt_cavity",
+    "severity": 0.84,
+    "safety_risk": 0.78,
+    "confidence": 0.95,
+    "recommended_department": "roads",
+    "visual_evidence_summary": "Large water-filled pothole (~25cm deep) occupying the main lane of traffic near hospital entrance.",
+    "hazard_tags": ["traffic_obstruction", "vehicle_damage_risk", "night_hazard"],
+    "estimated_urgency_hours": 4,
+    "ai_metadata": {
+      "engine": "google_gemini",
+      "model": "gemini-2.0-flash",
+      "latency_ms": 320
+    }
+  },
+  "sample_duplicate_detection_response": {
+    "has_duplicate": true,
+    "recommended_action": "LINK_TO_EXISTING_CASE",
+    "top_match": {
+      "case_id": "CASE-1024",
+      "duplicate_probability": 0.884,
+      "vector_similarity": 0.912,
+      "gps_distance_meters": 18.5,
+      "category_match": true,
+      "time_delta_days": 0.25,
+      "is_definite_duplicate": true,
+      "is_potential_duplicate": true,
+      "rationale": "Strong duplicate match (88.4%): Located 18.5m away with 0.91 semantic similarity in category 'pothole'."
+    }
+  },
+  "sample_priority_calculation_response": {
+    "total_score": 86.5,
+    "priority_level": "CRITICAL",
+    "breakdown": {
+      "severity_points": 25.2,
+      "safety_risk_points": 15.6,
+      "report_count_points": 16.0,
+      "location_importance_points": 10.0,
+      "complaint_age_points": 3.7,
+      "public_impact_points": 16.0
+    },
+    "recommended_sla_hours": 4,
+    "escalation_flag": true,
+    "explanation": "Case prioritized as CRITICAL (86.5/100) based on high severity and safety hazard in critical hospital zone."
+  },
+  "sample_hotspots_map_data": [
+    {
+      "cluster_id": "hotspot_flooding_101",
+      "category": "flooding",
+      "center_location": {
+        "latitude": 37.7749,
+        "longitude": -122.4194
+      },
+      "radius_meters": 140.0,
+      "incident_count": 8,
+      "average_severity": 0.88,
+      "critical_incident_count": 6,
+      "municipality_id": "muni_san_francisco_01",
+      "label": "Flooding Hotspot: 8 reports within 140m radius"
+    },
+    {
+      "cluster_id": "hotspot_pothole_102",
+      "category": "pothole",
+      "center_location": {
+        "latitude": 37.7850,
+        "longitude": -122.4080
+      },
+      "radius_meters": 95.0,
+      "incident_count": 5,
+      "average_severity": 0.76,
+      "critical_incident_count": 2,
+      "municipality_id": "muni_san_francisco_01",
+      "label": "Pothole Hotspot: 5 reports within 95m radius"
+    }
+  ],
+  "sample_recurring_problems_data": [
+    {
+      "problem_id": "rec_prob_drainage_01",
+      "location_label": "Downtown Sector 4 Drainage Node",
+      "center_location": {
+        "latitude": 37.7749,
+        "longitude": -122.4194
+      },
+      "category": "drainage_problem",
+      "total_occurrences": 12,
+      "time_span_days": 180,
+      "monthly_frequency": {
+        "Jan 2026": 2,
+        "Feb 2026": 3,
+        "Mar 2026": 7
+      },
+      "severity_trend": "INCREASING",
+      "probable_root_cause": "Underground stormwater conduit diameter (300mm) insufficient for recent monsoon runoff volume.",
+      "ai_recommendation": "Upgrade mainline culvert to 600mm reinforced concrete box and install smart silt traps.",
+      "estimated_intervention_scope": "CAPITAL_PROJECT"
+    }
+  ]
+}
