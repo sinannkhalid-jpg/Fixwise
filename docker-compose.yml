@@ -1,0 +1,35 @@
+version: "3.9"
+
+# Minimal compose for the frontend. Backend / DB / AI services are owned by
+# Members 1 & 3 — uncomment as they land (see .env.example for their vars).
+
+services:
+  web:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev"
+    volumes:
+      - ./apps/web:/app
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-}
+
+  # ── Member 1: database (Supabase locally → Postgres + PostGIS + pgvector) ──
+  # db:
+  #   image: pgvector/pgvector:pg16
+  #   environment:
+  #     POSTGRES_PASSWORD: postgres
+  #     POSTGRES_DB: fixwise
+  #   ports: ["5432:5432"]
+
+  # ── Member 1: API ──
+  # api:
+  #   build: ./apps/api
+  #   ports: ["8000:8000"]
+  #   depends_on: [db]
+
+  # ── Member 3: AI service ──
+  # ai:
+  #   build: ./services/ai
+  #   ports: ["8001:8001"]
