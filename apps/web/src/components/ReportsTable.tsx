@@ -30,6 +30,14 @@ export function ReportsTable({
   const [risk, setRisk] = useState("");
   const [sort, setSort] = useState<"risk" | "newest">("risk");
   const [flaggedOnly, setFlaggedOnly] = useState(false);
+  const [uniqueOnly, setUniqueOnly] = useState(false);
+
+  const clearFilters = () => {
+    setQ("");
+    setMuni("");
+    setCat("");
+    setRisk("");
+  };
 
   const filtered = rows.filter(
     (r) =>
@@ -40,7 +48,10 @@ export function ReportsTable({
       (!q || `${r.report.citizenName} ${r.report.description} ${r.case.title}`.toLowerCase().includes(q.toLowerCase()))
   );
 
-  const flagged = filtered.filter((r) => r.report.riskScore >= 60).length;
+  const flagged = rows.filter((r) => r.report.riskScore >= 60).length;
+  const displayed = uniqueOnly
+    ? filtered.filter((row, index, list) => list.findIndex((candidate) => candidate.case.id === row.case.id) === index)
+    : filtered;
 
   return (
     <div className="space-y-4">
@@ -76,10 +87,10 @@ export function ReportsTable({
       </div>
 
       <div className="flex flex-wrap gap-2 text-xs text-slate-500">
-        <button type="button" onClick={() => { setFlaggedOnly(false); setQ(""); }}><Chip active>{filtered.length} reports</Chip></button>
-        <button type="button" onClick={() => { setFlaggedOnly(false); setQ(""); }}><Chip>{new Set(filtered.map((r) => r.case.id)).size} unique cases</Chip></button>
+        <button type="button" onClick={() => { clearFilters(); setUniqueOnly(false); setFlaggedOnly(false); }}><Chip active={!uniqueOnly && !flaggedOnly}>{rows.length} reports</Chip></button>
+        <button type="button" onClick={() => { clearFilters(); setUniqueOnly(true); setFlaggedOnly(false); }}><Chip active={uniqueOnly}>{new Set(rows.map((r) => r.case.id)).size} unique cases</Chip></button>
         {flagged > 0 && (
-          <button type="button" onClick={() => setFlaggedOnly((v) => !v)} className={flaggedOnly ? "ring-2 ring-rose-400 rounded-full" : ""}>
+          <button type="button" onClick={() => { clearFilters(); setFlaggedOnly((v) => !v); setUniqueOnly(false); }} className={flaggedOnly ? "ring-2 ring-rose-400 rounded-full" : ""}>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 font-medium text-rose-700">
               <ShieldAlert className="h-3 w-3" /> {flagged} flagged for review
             </span>
@@ -87,7 +98,7 @@ export function ReportsTable({
         )}
       </div>
 
-      {filtered.length === 0 ? (
+      {displayed.length === 0 ? (
         <EmptyState icon={Search} title="No reports match" body="Try clearing the filters above." />
       ) : (
         <Card className="overflow-x-auto">
@@ -104,7 +115,7 @@ export function ReportsTable({
               </tr>
             </thead>
             <tbody>
-              {[...filtered].sort((a, b) => sort === "risk"
+              {[...displayed].sort((a, b) => sort === "risk"
                 ? (b.report.riskScore ?? b.case.risk.score) - (a.report.riskScore ?? a.case.risk.score)
                 : new Date(b.report.createdAt).getTime() - new Date(a.report.createdAt).getTime()
               ).slice(0, 60).map(({ report, case: c, isPrimary }) => (

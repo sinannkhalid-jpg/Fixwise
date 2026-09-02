@@ -3,26 +3,39 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ArrowRight, Info } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Field, Input } from "@/components/ui/Form";
 import { InfoNote } from "@/components/ui/Misc";
-import { PERSONAS, ROLE_HOME } from "@/lib/personas";
+import { ROLE_HOME } from "@/lib/personas";
+import { getSupabase } from "@/lib/supabase";
 import { useApp } from "@/lib/store";
 
 export default function LoginPage() {
-  const { setPersona } = useApp();
+  const { authLoading } = useApp();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("citizen");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const signIn = (id: string) => {
-    const p = PERSONAS.find((x) => x.id === id);
-    if (!p) return;
-    setPersona(p);
-    router.push(ROLE_HOME[p.role]);
+  const signIn = async () => {
+    const supabase = getSupabase();
+    if (!supabase) { setError("Authentication is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY."); return; }
+    setSubmitting(true); setError("");
+    const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    if (signInError) { setError(signInError.message); setSubmitting(false); return; }
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", data.user.id).maybeSingle();
+    const role = profile?.role as keyof typeof ROLE_HOME | undefined;
+    if (!role || !ROLE_HOME[role]) {
+      await supabase.auth.signOut();
+      setError("This account has not been provisioned with a Fixwise role.");
+      setSubmitting(false);
+      return;
+    }
+    router.push(ROLE_HOME[role]);
+    setSubmitting(false);
   };
 
   return (
@@ -38,24 +51,17 @@ export default function LoginPage() {
             className="space-y-4"
             onSubmit={(e) => {
               e.preventDefault();
-              signIn(role);
+              void signIn();
             }}
           >
             <Field label="Email" required>
               <Input type="email" required placeholder="you@example.in" value={email} onChange={(e) => setEmail(e.target.value)} />
             </Field>
-            <Field label="Account type" required>
-              <select value={role} onChange={(e) => setRole(e.target.value)} className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm">
-                <option value="citizen">Citizen</option>
-                <option value="muni-admin">Municipality administrator</option>
-                <option value="dept-admin">Department administrator</option>
-                <option value="super-admin">Platform administrator</option>
-              </select>
-            </Field>
             <Field label="Password" required>
               <Input type="password" required placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
             </Field>
-            <Button type="submit" className="w-full">
+            {error && <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>}
+            <Button type="submit" className="w-full" disabled={submitting || authLoading}>
               Sign in <ArrowRight className="h-4 w-4" />
             </Button>
           </form>
@@ -68,14 +74,13 @@ export default function LoginPage() {
         </Card>
 
         <InfoNote tone="amber">
-          <strong>Demo mode:</strong> authentication is mocked — Supabase Auth lands with the backend (Member 1).
-          Use the quick sign-in buttons to enter any role.
+          Your permissions are assigned to your account by the platform. Staff accounts cannot choose a role during sign-in.
         </InfoNote>
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6">
         <h2 className="font-semibold text-slate-900">Secure role-based access</h2>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600">Your account type determines which dashboard and permissions you receive. Demo account shortcuts have been removed.</p>
+        <p className="mt-2 text-sm leading-relaxed text-slate-600">Your account type determines which dashboard and permissions you receive.</p>
       </div>
     </div>
   );

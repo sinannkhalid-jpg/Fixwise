@@ -2,6 +2,7 @@
 
 import { BarChart3, LayoutDashboard, Map, Repeat, Building2, FileText } from "lucide-react";
 import { DashboardShell, type NavItem } from "@/components/DashboardShell";
+import { RequireRole } from "@/components/RequireRole";
 
 const ITEMS: NavItem[] = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard, exact: true },
@@ -14,8 +15,10 @@ const ITEMS: NavItem[] = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <DashboardShell title="Main Admin · Platform" subtitle="All municipalities, global statistics & AI intelligence" items={ITEMS}>
-      {children}
-    </DashboardShell>
+    <RequireRole roles={["SUPER_ADMIN"]}>
+      <DashboardShell title="Main Admin · Platform" subtitle="All municipalities, global statistics & AI intelligence" items={ITEMS}>
+        {children}
+      </DashboardShell>
+    </RequireRole>
   );
 }

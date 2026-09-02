@@ -16,6 +16,7 @@ import {
 import { DashboardShell, type NavItem } from "@/components/DashboardShell";
 import { useApp } from "@/lib/store";
 import { MUNI_BY_ID } from "@/lib/mock/data";
+import { RequireRole } from "@/components/RequireRole";
 
 const ITEMS: NavItem[] = [
   { href: "/municipality", label: "Overview", icon: LayoutDashboard, exact: true },
@@ -34,13 +35,15 @@ export default function MunicipalityLayout({ children }: { children: React.React
   const { activeMunicipalityId } = useApp();
   const muni = MUNI_BY_ID[activeMunicipalityId];
   return (
-    <DashboardShell
-      title={`Municipality Dashboard · ${muni?.shortName ?? ""}`}
-      subtitle={muni?.name}
-      items={ITEMS}
-      muniSwitcher
-    >
-      {children}
-    </DashboardShell>
+    <RequireRole roles={["MUNICIPALITY_ADMIN", "DEPARTMENT_ADMIN"]}>
+      <DashboardShell
+        title={`Municipality Dashboard · ${muni?.shortName ?? ""}`}
+        subtitle={muni?.name}
+        items={ITEMS}
+        muniSwitcher
+      >
+        {children}
+      </DashboardShell>
+    </RequireRole>
   );
 }

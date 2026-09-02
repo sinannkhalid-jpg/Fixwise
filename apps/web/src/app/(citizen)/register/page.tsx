@@ -1,21 +1,33 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Field, Input } from "@/components/ui/Form";
-import { InfoNote } from "@/components/ui/Misc";
-import { useApp } from "@/lib/store";
+import { getSupabase } from "@/lib/supabase";
 
 export default function RegisterPage() {
-  const { setPersona } = useApp();
-  const router = useRouter();
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm({ ...form, [k]: e.target.value });
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const register = async () => {
+    const supabase = getSupabase();
+    if (!supabase) { setError("Authentication is not configured. Set the Supabase public environment variables."); return; }
+    setSubmitting(true); setError("");
+    const { error: signUpError } = await supabase.auth.signUp({
+      email: form.email,
+      password: form.password,
+      options: { data: { full_name: form.name, phone: form.phone } },
+    });
+    if (signUpError) setError(signUpError.message);
+    else setNotice("Account created. Check your email to verify your address, then sign in.");
+    setSubmitting(false);
+  };
 
   return (
     <div className="mx-auto max-w-md px-4 py-14">
@@ -30,9 +42,7 @@ export default function RegisterPage() {
           className="space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
-            // Mock: sign in as the demo citizen persona
-            setPersona({ id: "citizen", name: form.name || "Ananya Sharma", email: form.email || "ananya@example.in", role: "CITIZEN", userId: "u-me", label: "Citizen" });
-            router.push("/report");
+            void register();
           }}
         >
           <Field label="Full name" required>
@@ -47,7 +57,9 @@ export default function RegisterPage() {
           <Field label="Password" required hint="Minimum 8 characters">
             <Input type="password" required minLength={8} value={form.password} onChange={set("password")} />
           </Field>
-          <Button type="submit" className="w-full">
+          {error && <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>}
+          {notice && <p role="status" className="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{notice}</p>}
+          <Button type="submit" className="w-full" disabled={submitting}>
             Create account <ArrowRight className="h-4 w-4" />
           </Button>
         </form>
@@ -59,12 +71,6 @@ export default function RegisterPage() {
         </p>
       </Card>
 
-      <div className="mt-4">
-        <InfoNote tone="amber">
-          <strong>Demo mode:</strong> registration is mocked and signs you in as the demo citizen. Supabase Auth +
-          RLS arrive with the backend.
-        </InfoNote>
-      </div>
     </div>
   );
 }

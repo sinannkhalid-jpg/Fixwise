@@ -12,7 +12,7 @@ import { ROLE_HOME } from "@/lib/personas";
 import { useApp } from "@/lib/store";
 
 export default function ProfilePage() {
-  const { persona, cases, setPersona } = useApp();
+  const { persona, cases, signOut } = useApp();
   const [prefs, setPrefs] = useState({ push: true, email: true, sms: false, area: true });
 
   const mine = cases.filter(
@@ -90,16 +90,17 @@ export default function ProfilePage() {
           </Card>
 
           <Card className="p-5">
-            <p className="text-sm font-semibold text-slate-900">Demo session</p>
+            <p className="text-sm font-semibold text-slate-900">Account session</p>
             <p className="mt-1 text-xs text-slate-500">
-              Auth is mocked in this build. Switch personas from the top bar or the sign-in page.
+              You are signed in with your Fixwise account.
             </p>
-            <Link
-              href="/login"
+            <button
+              type="button"
+              onClick={() => void signOut()}
               className="mt-3 inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
             >
-              <LogOut className="h-4 w-4" /> Switch account
-            </Link>
+              <LogOut className="h-4 w-4" /> Sign out
+            </button>
           </Card>
         </div>
       </div>

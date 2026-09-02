@@ -5,7 +5,7 @@
 // At integration time, replace the mutation bodies with fetch() calls —
 // pages/components should not need to change.
 
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import {
   ALLOWED_TRANSITIONS,
   CATEGORY_MAP,
@@ -29,7 +29,7 @@ import {
   suggestCategory,
   WORKERS,
 } from "@/lib/mock/data";
-import { PERSONAS } from "@/lib/personas";
+import { getSupabase } from "@/lib/supabase";
 import type {
   AIAnalysis,
   Area,
@@ -70,8 +70,10 @@ interface AppApi {
   auditLogs: AuditLog[];
   // session
   persona: Persona;
+  authLoading: boolean;
+  isAuthenticated: boolean;
   activeMunicipalityId: string;
-  setPersona: (p: Persona) => void;
+  signOut: () => Promise<void>;
   setActiveMunicipalityId: (id: string) => void;
   // case ops
   createReport: (draft: ReportDraft) => CreateReportResult;
@@ -95,6 +97,7 @@ const Ctx = createContext<AppApi | null>(null);
 
 const uid = (p: string) => `${p}-${Math.random().toString(36).slice(2, 9)}`;
 const NOW = () => new Date().toISOString();
+const GUEST: Persona = { id: "guest", userId: "guest", name: "Guest", email: "", role: "CITIZEN", label: "Guest" };
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [cases, setCases] = useState<Case[]>(() => CASES);
@@ -102,7 +105,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>(() => NOTIFICATIONS);
   const [recurringProblems, setRecurringProblems] = useState<RecurringProblem[]>(() => RECURRING_PROBLEMS);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => AUDIT_LOGS);
-  const [persona, setPersonaState] = useState<Persona>(() => PERSONAS[0]);
+  const [persona, setPersonaState] = useState<Persona>(GUEST);
+  const [authLoading, setAuthLoading] = useState(true);
   const [activeMunicipalityId, setActiveMunicipalityId] = useState<string>("m-pmc");
 
   const sessionRole = persona.role;
@@ -117,9 +121,56 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setNotifications((prev) => [{ id: uid("n"), audience, title, body, at: NOW(), read: false, caseId }, ...prev].slice(0, 60));
   }
 
-  function setPersona(p: Persona) {
-    setPersonaState(p);
-    if (p.municipalityId) setActiveMunicipalityId(p.municipalityId);
+  useEffect(() => {
+    const supabase = getSupabase();
+    if (!supabase) {
+      setAuthLoading(false);
+      return;
+    }
+
+    const loadProfile = async (user: { id: string; email?: string; user_metadata: Record<string, unknown> } | null) => {
+      if (!user) {
+        setPersonaState(GUEST);
+        setAuthLoading(false);
+        return;
+      }
+      const { data } = await supabase
+        .from("profiles")
+        .select("role, municipality_id, full_name")
+        .eq("id", user.id)
+        .maybeSingle();
+      const role = data?.role as Persona["role"] | undefined;
+      if (!role || !["CITIZEN", "MUNICIPALITY_ADMIN", "DEPARTMENT_ADMIN", "SUPER_ADMIN"].includes(role)) {
+        // A signed-in user without a provisioned profile has no application access.
+        setPersonaState(GUEST);
+        setAuthLoading(false);
+        return;
+      }
+      const profile = data!;
+      const next = {
+        id: user.id,
+        userId: user.id,
+        name: profile.full_name || String(user.user_metadata.full_name || user.email || "User"),
+        email: user.email || "",
+        role,
+        municipalityId: profile.municipality_id || undefined,
+        label: profile.full_name || user.email || "User",
+      } satisfies Persona;
+      setPersonaState(next);
+      if (next.municipalityId) setActiveMunicipalityId(next.municipalityId);
+      setAuthLoading(false);
+    };
+
+    supabase.auth.getUser().then(({ data }) => loadProfile(data.user));
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      void loadProfile(session?.user ?? null);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  async function signOut() {
+    await getSupabase()?.auth.signOut();
+    setPersonaState(GUEST);
   }
 
   // ── authorization (mirror of backend RBAC) ──
@@ -503,8 +554,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     insights: AI_INSIGHTS,
     auditLogs,
     persona,
+    authLoading,
+    isAuthenticated: persona.id !== GUEST.id,
     activeMunicipalityId,
-    setPersona,
+    signOut,
     setActiveMunicipalityId,
     createReport,
     setStatus,

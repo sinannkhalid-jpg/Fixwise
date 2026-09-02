@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { Avatar } from "@/components/ui/Misc";
-import { PERSONAS, ROLE_HOME } from "@/lib/personas";
+import { ROLE_HOME } from "@/lib/personas";
 import { useApp } from "@/lib/store";
 import { fmtRelative } from "@/lib/format";
 import { MOCK_NOW } from "@/lib/mock/data";
@@ -42,7 +42,7 @@ export function DashboardShell({
 }) {
   const path = usePathname();
   const router = useRouter();
-  const { persona, setPersona, municipalities, activeMunicipalityId, setActiveMunicipalityId } = useApp();
+  const { persona, signOut, municipalities, activeMunicipalityId, setActiveMunicipalityId } = useApp();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const nav = (
@@ -119,13 +119,7 @@ export function DashboardShell({
             />
           )}
           <NotificationsBell />
-          <RoleSwitcher
-            value={persona.id}
-            onChange={(p) => {
-              setPersona(p);
-              router.push(ROLE_HOME[p.role]);
-            }}
-          />
+          <AccountMenu onSignOut={async () => { await signOut(); router.push("/login"); }} />
         </header>
         <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-7xl animate-fade-up">{children}</div>
@@ -171,15 +165,16 @@ function MuniSwitcher({ value, onChange }: { value: string; onChange: (id: strin
   );
 }
 
-export function RoleSwitcher({ value, onChange }: { value: string; onChange: (p: (typeof PERSONAS)[number]) => void }) {
+export function AccountMenu({ onSignOut }: { onSignOut: () => void | Promise<void> }) {
+  const { persona } = useApp();
   const [open, setOpen] = useState(false);
-  const cur = PERSONAS.find((p) => p.id === value) ?? PERSONAS[0];
+  const cur = persona;
   return (
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
         className="flex items-center gap-2 rounded-full border border-slate-200 bg-white py-1 pl-1 pr-2.5 hover:border-slate-300"
-        aria-label="Switch demo role"
+        aria-label="Account menu"
       >
         <Avatar name={cur.name} size="sm" />
         <span className="hidden text-left leading-tight md:block">
@@ -190,35 +185,17 @@ export function RoleSwitcher({ value, onChange }: { value: string; onChange: (p:
       </button>
       {open && (
         <div className="absolute right-0 top-11 z-30 w-72 rounded-xl border border-slate-200 bg-white p-1.5 shadow-pop">
-          <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-            Demo personas — switch role
-          </p>
-          {PERSONAS.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => {
-                onChange(p);
-                setOpen(false);
-              }}
-              className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left ${
-                p.id === value ? "bg-blue-50" : "hover:bg-slate-50"
-              }`}
-            >
-              <Avatar name={p.name} size="sm" />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-xs font-semibold text-slate-800">{p.label}</span>
-                <span className="block text-[10px] text-slate-400">{p.email}</span>
-              </span>
-              {p.id === value && <Check className="h-3.5 w-3.5 text-blue-600" />}
-            </button>
-          ))}
-          <Link
-            href="/login"
-            onClick={() => setOpen(false)}
-            className="mt-1 flex items-center gap-2 rounded-lg border-t border-slate-100 px-3 py-2 text-xs text-slate-500 hover:bg-slate-50"
+          <div className="px-3 py-3">
+            <p className="text-xs font-semibold text-slate-800">{cur.name}</p>
+            <p className="truncate text-[10px] text-slate-400">{cur.email}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => { void onSignOut(); setOpen(false); }}
+            className="mt-1 flex w-full items-center gap-2 rounded-lg border-t border-slate-100 px-3 py-2 text-left text-xs text-slate-500 hover:bg-slate-50"
           >
-            <LogOut className="h-3.5 w-3.5" /> Sign-in page
-          </Link>
+            <LogOut className="h-3.5 w-3.5" /> Sign out
+          </button>
         </div>
       )}
     </div>
