@@ -30,6 +30,7 @@ import {
   WORKERS,
 } from "@/lib/mock/data";
 import { getSupabase } from "@/lib/supabase";
+import { DEMO_ACCOUNTS, findDemoAccount } from "@/lib/demo-auth";
 import type {
   AIAnalysis,
   Area,
@@ -72,6 +73,7 @@ interface AppApi {
   persona: Persona;
   authLoading: boolean;
   isAuthenticated: boolean;
+  signInWithDemo: (email: string, password: string) => boolean;
   activeMunicipalityId: string;
   signOut: () => Promise<void>;
   setActiveMunicipalityId: (id: string) => void;
@@ -124,6 +126,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const supabase = getSupabase();
     if (!supabase) {
+      const savedDemoAccountId = window.localStorage.getItem("fixwise-demo-account");
+      const demoAccount = DEMO_ACCOUNTS.find((account) => account.id === savedDemoAccountId);
+      if (demoAccount) {
+        const { password: _password, description: _description, ...persona } = demoAccount;
+        setPersonaState(persona);
+        if (persona.municipalityId) setActiveMunicipalityId(persona.municipalityId);
+      }
       setAuthLoading(false);
       return;
     }
@@ -168,8 +177,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => listener.subscription.unsubscribe();
   }, []);
 
+  function signInWithDemo(email: string, password: string) {
+    if (getSupabase()) return false;
+    const account = findDemoAccount(email, password);
+    if (!account) return false;
+    const { password: _password, description: _description, ...persona } = account;
+    window.localStorage.setItem("fixwise-demo-account", account.id);
+    setPersonaState(persona);
+    if (persona.municipalityId) setActiveMunicipalityId(persona.municipalityId);
+    return true;
+  }
+
   async function signOut() {
     await getSupabase()?.auth.signOut();
+    window.localStorage.removeItem("fixwise-demo-account");
     setPersonaState(GUEST);
   }
 
@@ -556,6 +577,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     persona,
     authLoading,
     isAuthenticated: persona.id !== GUEST.id,
+    signInWithDemo,
     activeMunicipalityId,
     signOut,
     setActiveMunicipalityId,

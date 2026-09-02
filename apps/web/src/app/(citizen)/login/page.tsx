@@ -9,11 +9,12 @@ import { Card } from "@/components/ui/Card";
 import { Field, Input } from "@/components/ui/Form";
 import { InfoNote } from "@/components/ui/Misc";
 import { ROLE_HOME } from "@/lib/personas";
+import { DEMO_ACCOUNTS } from "@/lib/demo-auth";
 import { getSupabase } from "@/lib/supabase";
 import { useApp } from "@/lib/store";
 
 export default function LoginPage() {
-  const { authLoading } = useApp();
+  const { authLoading, signInWithDemo } = useApp();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,7 +23,17 @@ export default function LoginPage() {
 
   const signIn = async () => {
     const supabase = getSupabase();
-    if (!supabase) { setError("Authentication is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY."); return; }
+    if (!supabase) {
+      const signedIn = signInWithDemo(email, password);
+      if (!signedIn) {
+        setError("Use one of the demo email and password pairs shown below.");
+        return;
+      }
+      const account = DEMO_ACCOUNTS.find((candidate) => candidate.email.toLowerCase() === email.trim().toLowerCase());
+      const next = new URLSearchParams(window.location.search).get("next");
+      router.push(next || (account ? ROLE_HOME[account.role] : "/"));
+      return;
+    }
     setSubmitting(true); setError("");
     const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
     if (signInError) { setError(signInError.message); setSubmitting(false); return; }
@@ -34,7 +45,8 @@ export default function LoginPage() {
       setSubmitting(false);
       return;
     }
-    router.push(ROLE_HOME[role]);
+    const next = new URLSearchParams(window.location.search).get("next");
+    router.push(next || ROLE_HOME[role]);
     setSubmitting(false);
   };
 
@@ -79,8 +91,28 @@ export default function LoginPage() {
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6">
-        <h2 className="font-semibold text-slate-900">Secure role-based access</h2>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600">Your account type determines which dashboard and permissions you receive.</p>
+        <h2 className="font-semibold text-slate-900">{getSupabase() ? "Secure role-based access" : "Demo login credentials"}</h2>
+        {getSupabase() ? (
+          <p className="mt-2 text-sm leading-relaxed text-slate-600">Your account type determines which dashboard and permissions you receive.</p>
+        ) : (
+          <>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">This local demo uses mock data. Select an account to fill in its credentials, then sign in.</p>
+            <div className="mt-5 space-y-3">
+              {DEMO_ACCOUNTS.map((account) => (
+                <button
+                  key={account.id}
+                  type="button"
+                  onClick={() => { setEmail(account.email); setPassword(account.password); setError(""); }}
+                  className="w-full rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:border-blue-300 hover:bg-blue-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                >
+                  <span className="block text-sm font-semibold text-slate-900">{account.name} · {account.description}</span>
+                  <span className="mt-1 block font-mono text-xs text-slate-600">{account.email}</span>
+                  <span className="mt-1 block font-mono text-xs text-slate-600">{account.password}</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

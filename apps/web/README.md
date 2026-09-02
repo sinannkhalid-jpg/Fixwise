@@ -10,7 +10,18 @@ npm run dev        # http://localhost:3000
 npm run build && npm start
 ```
 
-## Demo personas (top-right switcher or /login)
+## Demo credentials (`/login`, when Supabase is not configured)
+
+| Persona | Email | Password |
+|---|---|---|
+| Ananya Sharma | `ananya@fixwise.demo` | `Citizen@123` |
+| Rahul Kulkarni | `rahul@fixwise.demo` | `Municipal@123` |
+| Sneha Patil | `sneha@fixwise.demo` | `Department@123` |
+| Meera Deshpande | `meera@fixwise.demo` | `Admin@123` |
+
+These accounts are local demo credentials only; configure Supabase environment variables to use real authentication.
+
+## Demo personas
 
 | Persona | Role | Sees |
 |---|---|---|
