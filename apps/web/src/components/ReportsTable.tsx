@@ -29,12 +29,14 @@ export function ReportsTable({
   const [cat, setCat] = useState("");
   const [risk, setRisk] = useState("");
   const [sort, setSort] = useState<"risk" | "newest">("risk");
+  const [flaggedOnly, setFlaggedOnly] = useState(false);
 
   const filtered = rows.filter(
     (r) =>
       (!muni || r.case.municipalityId === muni) &&
       (!cat || r.case.category === cat) &&
       (!risk || r.report.riskLevel === risk) &&
+      (!flaggedOnly || r.report.riskScore >= 60) &&
       (!q || `${r.report.citizenName} ${r.report.description} ${r.case.title}`.toLowerCase().includes(q.toLowerCase()))
   );
 
@@ -74,12 +76,14 @@ export function ReportsTable({
       </div>
 
       <div className="flex flex-wrap gap-2 text-xs text-slate-500">
-        <Chip active>{filtered.length} reports</Chip>
-        <Chip>{new Set(filtered.map((r) => r.case.id)).size} unique cases</Chip>
+        <button type="button" onClick={() => { setFlaggedOnly(false); setQ(""); }}><Chip active>{filtered.length} reports</Chip></button>
+        <button type="button" onClick={() => { setFlaggedOnly(false); setQ(""); }}><Chip>{new Set(filtered.map((r) => r.case.id)).size} unique cases</Chip></button>
         {flagged > 0 && (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 font-medium text-rose-700">
-            <ShieldAlert className="h-3 w-3" /> {flagged} flagged for review
-          </span>
+          <button type="button" onClick={() => setFlaggedOnly((v) => !v)} className={flaggedOnly ? "ring-2 ring-rose-400 rounded-full" : ""}>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 font-medium text-rose-700">
+              <ShieldAlert className="h-3 w-3" /> {flagged} flagged for review
+            </span>
+          </button>
         )}
       </div>
 

@@ -16,6 +16,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState("citizen");
 
   const signIn = (id: string) => {
     const p = PERSONAS.find((x) => x.id === id);
@@ -37,11 +38,19 @@ export default function LoginPage() {
             className="space-y-4"
             onSubmit={(e) => {
               e.preventDefault();
-              signIn(email.includes("admin") && email.includes("super") ? "super-admin" : email.includes("admin") ? "muni-admin" : "citizen");
+              signIn(role);
             }}
           >
             <Field label="Email" required>
               <Input type="email" required placeholder="you@example.in" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </Field>
+            <Field label="Account type" required>
+              <select value={role} onChange={(e) => setRole(e.target.value)} className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm">
+                <option value="citizen">Citizen</option>
+                <option value="muni-admin">Municipality administrator</option>
+                <option value="dept-admin">Department administrator</option>
+                <option value="super-admin">Platform administrator</option>
+              </select>
             </Field>
             <Field label="Password" required>
               <Input type="password" required placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
@@ -64,29 +73,9 @@ export default function LoginPage() {
         </InfoNote>
       </div>
 
-      <div>
-        <p className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-          <Info className="h-4 w-4 text-blue-500" /> Quick sign-in (demo personas)
-        </p>
-        <div className="mt-4 space-y-3">
-          {PERSONAS.map((p) => (
-            <Card key={p.id} className="flex items-center gap-4 p-4" >
-              <button onClick={() => signIn(p.id)} className="flex w-full items-center gap-4 text-left">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-teal-500 text-sm font-bold text-white">
-                  {p.name.split(" ").map((x) => x[0]).slice(0, 2).join("")}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-slate-900">{p.label}</span>
-                  <span className="block truncate text-xs text-slate-500">{p.email}</span>
-                  <span className="mt-1 inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
-                    {p.role.replaceAll("_", " ")}
-                  </span>
-                </span>
-                <ArrowRight className="h-4 w-4 shrink-0 text-slate-300" />
-              </button>
-            </Card>
-          ))}
-        </div>
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6">
+        <h2 className="font-semibold text-slate-900">Secure role-based access</h2>
+        <p className="mt-2 text-sm leading-relaxed text-slate-600">Your account type determines which dashboard and permissions you receive. Demo account shortcuts have been removed.</p>
       </div>
     </div>
   );
